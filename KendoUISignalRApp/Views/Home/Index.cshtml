@@ -1,0 +1,160 @@
+﻿@using KendoUISignalRApp.Models
+@{
+    ViewBag.Title = "Home Page";
+}
+
+<script src="@Url.Content("~/Scripts/jquery.signalR-2.2.1.min.js")"></script>
+<script src="@Url.Content("~/signalr/hubs")"></script>
+
+
+
+@(Html.Kendo().Notification()
+      .Name("notification")
+      .Width("100%")
+      .Position(position => position.Top(0).Left(0))
+)
+
+@(Html.Kendo().Grid<ProductViewModel>()
+    .Name("Grid")
+    .Columns(columns =>
+    {
+        columns.Bound(p => p.ProductName);
+        columns.Bound(p => p.UnitPrice).Width(140);
+        columns.Bound(p => p.UnitsInStock).Width(80);
+        columns.Bound(p => p.Discontinued).Width(80);
+        columns.Command(command =>
+        {
+            command.Destroy();
+        }).Width(110);
+    })
+    .ToolBar(toolbar =>
+    {
+        toolbar.Create();
+    })
+    .Editable(editable => editable.Mode(GridEditMode.InCell))
+    .Pageable()
+    .Navigatable()
+    .Sortable()
+    .Scrollable()
+    .Filterable()
+    //.Filterable(ftb => ftb.Mode(GridFilterMode.Row))
+    .Selectable(selectable =>
+    {
+        selectable.Mode(GridSelectionMode.Single);
+        selectable.Type(GridSelectionType.Row);
+    })
+    .Pageable(pageable => pageable.Refresh(true))
+    .DataSource(dataSource => dataSource
+        .SignalR()
+        .AutoSync(true)
+        .Events(events => events.Push("onPush"))
+        .Sort(sort => sort.Add(s => s.ProductName).Ascending())
+        .ServerFiltering(true)
+        .ServerPaging(true)
+        .ServerSorting(true)
+        .PageSize(10)
+        .Transport(tr => tr
+            .Promise("hubStart")
+            .Hub("hub")
+            .Client(c => c
+                .Read("read")
+                .Create("create")
+                .Update("update")
+                .Destroy("destroy"))
+            .Server(s => s
+                .Read("read")
+                .Create("create")
+                .Update("update")
+                .Destroy("destroy")))
+        .Schema(schema => schema
+            .Data("Data")
+            .Total("Total")
+            .Aggregates("Aggregates")
+            .Model(model =>
+            {
+                model.Id(m => m.ProductID);
+                model.Field(m => m.ProductID).Editable(false);
+                model.Field(m => m.ProductName).Editable(true);
+                model.Field(m => m.UnitPrice).Editable(true);
+                model.Field(m => m.UnitsInStock).Editable(true);
+                model.Field(m => m.Discontinued).Editable(true);
+            })
+        )
+    )
+    //.Events(events =>
+    //{
+    //    events.DataBinding("gridOnDatabind");
+    //})
+
+)
+
+<br />
+<div class="configuration-horizontal">
+    <span class="configHead">Information</span>
+    <p>
+        This demo demonstrates real-time push-notifications from <a href="http://signalr.net/">SignalR</a>.
+    </p>
+    <p>
+        To see the real-time updates:
+    </p>
+    <ol>
+        <li>Open this page in another browser window by clicking <a href="" target="_new">here</a></li>
+        <li>Create, update or destroy grid items.</li>
+    </ol>
+</div>
+
+<script language="javascript">
+    var hub = $.connection.productHub;
+    var hubStart = $.connection.hub.start();
+    var $grid;
+
+    $(function () {
+        $grid = $("#Grid").data('kendoGrid');
+
+        $grid.bind("dataBinding", function (e) {
+            // Check if a filter menu is open. If so, prevent binding, for binding will interfere with everyting typed in the filter
+            // http://www.telerik.com/forums/prevent-kendo-grid-data-bind-events-when-updating-multiple-model-properties
+            var $filtermenu = $(".k-filter-menu");
+            if ($filtermenu.length > 0) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    hub.client.showMessage = function (message) {
+        console.log(message);
+    }
+
+
+    ////////////////////////////////////////////////
+    function onPush(e) {
+        //var notification = $("#notification").data("kendoNotification");
+        //notification.success(e.type);
+
+        var dataSource = $grid.dataSource;
+
+        // Check if a filter menu is open. If so, prevent binding, for binding will interfere with everyting typed in the filter
+        var $filtermenu = $(".k-filter-menu");
+        if ($filtermenu.length > 0) {
+            return; // prevent create
+        }
+
+        if (e.type === "create") {
+            // Sort grid programmatically
+            // http://www.telerik.com/forums/sorting-a-grid-programmatically
+
+            dataSource.sort(dataSource._sort);
+        }
+    }
+
+    //function gridOnDatabind(e) {
+    //    console.log("Bind");
+
+    //    // Check if a filter menu is open. If so, prevent binding, for binding will interfere with everyting typed in the filter
+    //    var $filterbox = $(".k-filter-menu");
+    //    if ($filterbox.length > 0) {
+    //        e.preventDefault();
+    //    }
+    //}
+
+</script>
